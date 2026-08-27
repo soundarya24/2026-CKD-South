@@ -118,34 +118,13 @@ panel <- temperature |>
   left_join(outcomes_wide, by = c("state_name", "year")) |>
   arrange(state_name, year)
 
-# ---- 4. Aim 2 DALY panel: NUMBER counts + shares ----------------------------
 
-ckd_daly_wide <- read_gbd_combined(gbd_daly_path, 2L, METRIC_NUM) |>
-  mutate(cause = recode(as.character(cause_id), "589" = "allCKD", "593" = "CKDu")) |>
-  select(state_name, year, cause, val) |>
-  pivot_wider(names_from = cause, values_from = val, names_glue = "DALY_{cause}")
-
-allcause_daly <- read_csv(
-  here("_rawData", "DALY-YLL-YLD", "all-cause-DALY.csv"), show_col_types = FALSE) |>
-  filter(measure_id == 2L, cause_id == 294L, metric_id == METRIC_NUM,
-         sex_id == SEX_BOTH, age_id == AGE_ALL,
-         location_name %in% south_states, year >= yr_min, year <= yr_max) |>
-  transmute(state_name = location_name, year, DALY_allcause = val)
-
-daly_panel <- ckd_daly_wide |>
-  left_join(allcause_daly, by = c("state_name", "year")) |>
-  mutate(
-    share_allCKD = DALY_allCKD / DALY_allcause,
-    share_CKDu   = DALY_CKDu   / DALY_allcause
-  ) |>
-  arrange(state_name, year)
 
 # ---- 5. Save + diagnostics --------------------------------------------------
 
 out_dir <- here("2_derivedData")
 #dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 saveRDS(panel,      file.path(out_dir, "ckd_temp_panel.rds"))
-saveRDS(daly_panel, file.path(out_dir, "ckd_daly_panel.rds"))
 
 cat("\n================ PANEL DIAGNOSTICS ================\n")
 cat("Aim 1 panel rows:", nrow(panel),
@@ -170,13 +149,7 @@ panel |>
                                       max = ~max(.,na.rm=TRUE)))) |>
   pivot_longer(everything()) |> print(n = Inf)
 
-cat("\nDALY share sanity (small positive fractions):\n")
-daly_panel |>
-  group_by(state_name) |>
-  summarise(mean_share_allCKD = mean(share_allCKD, na.rm = TRUE),
-            mean_share_CKDu   = mean(share_CKDu, na.rm = TRUE)) |>
-  print()
 
-cat("\nSaved: _rawData/derived/ckd_temp_panel.rds (rates) & ckd_daly_panel.rds (counts)\n")
+cat("\nSaved: _rawData/derived/ckd_temp_panel.rds (rates) ")
 cat("==================================================\n")
 
